@@ -22,6 +22,7 @@ def create(args):
         [
             'create', LF,
             '--hostname', container_hostname, LF,
+            '-e', '{}={}'.format(common.consts['host_dir_env_var'], common.consts['root_dir']), LF,
             '-i', LF,
             '--name', container_name, LF,
             '--net', 'host', LF,

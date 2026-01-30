@@ -229,16 +229,14 @@ Run `make modules_install` after `make`.
             )
             root_dir = self.env['root_dir']
             prefix = root_dir + os.sep
-            myvar = "/new/base"
-            compile_commands_json = json.loads(Path(compile_commands_build_path).read_text())
-            for entry in compile_commands_json:
-                for key in ("command", "directory", "file"):
-                    val = entry.get(key)
-                    if isinstance(val, str) and val.startswith(prefix):
-                        entry[key] = f"{myvar}/" + val[len(prefix):]
-            (Path(root_dir) / self.env['compile_commands_basename']).write_text(
-                json.dumps(compile_commands_json, indent=2))
-
+            host_dir = os.environ.get(self.env['host_dir_env_var'])
+            dst = os.path.join(root_dir, self.env['compile_commands_basename'])
+            if host_dir:
+                Path(dst).write_text(
+                    Path(compile_commands_build_path).read_text().replace(prefix, host_dir + os.sep)
+                )
+            else:
+                self.sh.cp(compile_commands_build_path, dst)
             if self.env['modules_install']:
                 self.sh.run_cmd(
                     (

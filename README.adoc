@@ -5796,7 +5796,7 @@ https://en.wikipedia.org/wiki/Linux_kernel
 
 TODO get it working.
 
-This repo adopts a simplistic model: the last `./build-kernel` command will store `compile_commands.json` on repo toplevel, which our vscode link:kernel_modules.code-workspace[] should then pick up and use to correctly view kernel symbols even from our kernel modules.
+This repo adopts a simplistic model: the last `./build-kernel` command will store `compile_commands.json` on repo toplevel, which our kernel module vscode workspace link:kernel_modules.code-workspace[] should then pick up and use to correctly view kernel symbols even from our kernel modules.
 
 === Linux kernel configuration
 
@@ -8155,6 +8155,10 @@ A more convenient front-end for <<kthread>>:
 insmod workqueue_cheat.ko
 ....
 
+Source: link:kernel_modules/workqueue_cheat.c[]
+
+This example allows creating `nqueues` work queues with `nworks` items per work queue.
+
 Outcome: each queue counts from `0` to `9` infinitely many times until rmmod. The first queue counts once every 0.5s, the second once every 1s and so on. Expected output:
 
 ....
@@ -8177,8 +8181,6 @@ Stop counting:
 ....
 rmmod workqueue_cheat
 ....
-
-Source: link:kernel_modules/workqueue_cheat.c[]
 
 The workqueue thread is killed after the worker function returns.
 
