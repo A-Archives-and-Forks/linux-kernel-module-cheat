@@ -121,6 +121,25 @@ for key in consts['arch_short_to_long_dict']:
     consts['arch_choices'].add(consts['arch_short_to_long_dict'][key])
 consts['default_arch'] = 'x86_64'
 consts['gem5_cpt_prefix'] = r'^cpt\.'
+# Python platform notes:
+# - Python 3.8+ docs expose machine() and processor(), but both may return ''.
+# - Python 3.9 changed only platform.uname().processor to resolve lazily.
+# - Current docs also warn that machine() spelling/casing is platform-dependent.
+# Prefer machine(), keep processor() as fallback, then normalize to LKMC arch names.
+def get_host_arch():
+    raw_archs = (platform.machine(), platform.processor())
+    for raw_arch in raw_archs:
+        arch = raw_arch.lower()
+        if arch in ('x86_64', 'amd64'):
+            return 'x86_64'
+        elif arch in ('aarch64', 'arm64'):
+            return 'aarch64'
+        elif arch == 'arm' or arch.startswith('armv'):
+            return 'arm'
+    for raw_arch in raw_archs:
+        if raw_arch:
+            return raw_arch.lower()
+    return consts['default_arch']
 def git_sha(repo_path):
     return subprocess.check_output(['git', '-C', repo_path, 'log', '-1', '--format=%H']).decode().rstrip()
 consts['sha'] = common.git_sha(consts['root_dir'])
@@ -167,7 +186,7 @@ consts['emulator_choices'] = set()
 for key in consts['emulator_short_to_long_dict']:
     consts['emulator_choices'].add(key)
     consts['emulator_choices'].add(consts['emulator_short_to_long_dict'][key])
-consts['host_arch'] = platform.processor()
+consts['host_arch'] = get_host_arch()
 consts['guest_lkmc_home'] = os.sep + consts['repo_short_id']
 consts['build_type_choices'] = [
     # -O2 -g
@@ -1533,6 +1552,8 @@ lunch aosp_{}-eng
                 for arch in real_archs:
                     if arch in env['arch_short_to_long_dict']:
                         arch = env['arch_short_to_long_dict'][arch]
+                    if arch not in env['all_long_archs']:
+                        raise Exception('Unsupported arch for this action: ' + arch)
                     if emulator in env['emulator_short_to_long_dict']:
                         emulator = env['emulator_short_to_long_dict'][emulator]
                     if self.is_arch_supported(arch, env['mode']):
@@ -2007,6 +2028,9 @@ after configure, e.g. SCons. Usually contains specific targets or other build fl
                                         ]).decode()
                                         cc_flags_after.extend(self.sh.shlex_split(pkg_config_output))
                 os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                extra_paths = None
+                if self.env['ccache']:
+                    extra_paths = [self.env['ccache_dir']]
                 ret = self.sh.run_cmd(
                     (
                         [
@@ -2021,7 +2045,7 @@ after configure, e.g. SCons. Usually contains specific targets or other build fl
                         self.sh.add_newlines(extra_objs) +
                         cc_flags_after
                     ),
-                    extra_paths=[self.env['ccache_dir']],
+                    extra_paths=extra_paths,
                 )
         return ret
 
