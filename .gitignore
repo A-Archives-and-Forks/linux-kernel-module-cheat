@@ -49,4 +49,6 @@ node_modules
 perf.data
 callgrind.out.*
 
+# clangd
+/.cache
 compile_commands.json

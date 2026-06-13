@@ -1,5 +1,7 @@
 /* https://cirosantilli.com/linux-kernel-module-cheat#workqueues */
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/delay.h> /* usleep_range */
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -9,12 +11,17 @@
 
 struct my_work {
 	struct work_struct work;
-	int id;
+	int queue_id;
+	int item_id;
 };
 
-static int num_queues = 2;
-module_param(num_queues, int, 0444);
-MODULE_PARM_DESC(num_queues, "Number of workqueues to spawn (>=1)");
+static int nqueues = 2;
+module_param(nqueues, int, 0444);
+MODULE_PARM_DESC(nqueues, "Number of workqueues to spawn (>=1)");
+
+static int nworks = 1;
+module_param(nworks, int, 0444);
+MODULE_PARM_DESC(nworks, "Number of work items per queue (>=1)");
 
 static struct workqueue_struct **queues;
 static struct my_work *works;
@@ -24,40 +31,47 @@ static void work_func(struct work_struct *work)
 {
 	struct my_work *mw = container_of(work, struct my_work, work);
 	int i = 0;
-	unsigned int sleep_us = 500000 * mw->id; /* id 1 => 0.5s, id 2 => 1s */
+	unsigned int sleep_us = 500000 * mw->queue_id; /* queue 1 => 0.5s, queue 2 => 1s */
 
 	while (atomic_read(&run)) {
-		pr_info("work.id=%d i=%d\n", mw->id, i);
+		pr_info("queue_id=%d item_id=%d i=%d\n", mw->queue_id, mw->item_id, i);
 		usleep_range(sleep_us, sleep_us + 1000);
 		i++;
-		if (i == 10)
-			i = 0;
+		if (i == 5)
+			break;
 	}
 }
 
 static int myinit(void)
 {
-	int i;
-	struct workqueue_struct *wq;
+	int i, j, idx = 0;
 
-	if (num_queues < 1)
+	if (nqueues < 1 || nworks < 1)
 		return -EINVAL;
-	queues = kcalloc(num_queues, sizeof(*queues), GFP_KERNEL);
+	queues = kcalloc(nqueues, sizeof(*queues), GFP_KERNEL);
 	if (!queues)
 		return -ENOMEM;
-	works = kcalloc(num_queues, sizeof(*works), GFP_KERNEL);
+	works = kcalloc(nqueues * nworks, sizeof(*works), GFP_KERNEL);
 	if (!works) {
 		kfree(queues);
 		return -ENOMEM;
 	}
-	for (i = 0; i < num_queues; i++) {
+	for (i = 0; i < nqueues; i++) {
+		struct workqueue_struct *wq;
+
 		wq = alloc_workqueue("myworkqueue-%d", WQ_UNBOUND, 1, i + 1);
 		if (!wq)
 			goto err_create;
 		queues[i] = wq;
-		works[i].id = i + 1;
-		INIT_WORK(&works[i].work, work_func);
-		queue_work(queues[i], &works[i].work);
+
+		for (j = 0; j < nworks; j++) {
+			struct my_work *mw = &works[idx++];
+
+			mw->queue_id = i + 1;
+			mw->item_id = j + 1;
+			INIT_WORK(&mw->work, work_func);
+			queue_work(queues[i], &mw->work);
+		}
 	}
 
 	return 0;
@@ -76,7 +90,7 @@ static void myexit(void)
 
 	atomic_set(&run, 0);
 	if (queues) {
-		for (i = 0; i < num_queues; i++) {
+		for (i = 0; i < nqueues; i++) {
 			if (!queues[i])
 				continue;
 			flush_workqueue(queues[i]);
