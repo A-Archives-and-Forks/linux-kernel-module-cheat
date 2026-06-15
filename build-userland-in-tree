@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import platform
 import subprocess
 
 import lkmc.import_path
@@ -11,7 +10,7 @@ build_userland = lkmc.import_path.import_path_relative_root('build-userland')
 class Main(build_userland.Main):
     def __init__(self):
         defaults = {
-            'archs': [platform.processor()],
+            'archs': [build_userland.common.consts['host_arch']],
             'gcc_which': 'host',
             'in_tree': True,
             'targets': ['.'],
